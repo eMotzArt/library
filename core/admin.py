@@ -46,11 +46,11 @@ class CustomReaderAdmin(admin.ModelAdmin):
     @admin.action(description='Удалить активные книги')
     def rm_active_books(self, request, queryset):
         queryset = queryset.prefetch_related('active_books')
-        books = [book for reader in queryset for book in reader.active_books.all()]
         with transaction.atomic():
-            for book in books:
-                book.quantity += 1
-                book.save()
+            for reader in queryset:
+                for book in reader.active_books:
+                    book.quantity += 1
+                    book.save()
             [reader.active_books.clear() for reader in queryset]
 
 
