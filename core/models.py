@@ -1,6 +1,4 @@
-from django.core.exceptions import ValidationError
-from django.db import models, transaction
-from django.db.models.signals import m2m_changed
+from django.db import models
 
 from core.validators import RussianPhoneValidator, BookNegativeSheetsValidator
 
@@ -22,7 +20,6 @@ class Author(BaseModel):
     name = models.CharField(max_length=32, verbose_name="Имя")
     surname = models.CharField(max_length=64, verbose_name="Фамилия")
     photo = models.ImageField(null=True, blank=True, upload_to=get_file_name, verbose_name="Фотография")
-
 
     def __str__(self):
         return f"{self.name} {self.surname}"
@@ -60,31 +57,3 @@ class Reader(BaseModel):
     class Meta:
         verbose_name = "Читатель"
         verbose_name_plural = "Читатели"
-
-
-# signals
-def reader_active_books_changed(sender, **kwargs):
-    action = kwargs['action']
-
-    if action == 'post_remove':
-        books = [book for book in Book.objects.filter(pk__in=kwargs['pk_set']).all()]
-        with transaction.atomic():
-            for book in books:
-                book.quantity += 1
-                book.save()
-
-    if action == 'pre_add':
-        non_quantity_books = [book_id for book_id in kwargs['pk_set'] if not Book.objects.get(pk=book_id).quantity]
-        if non_quantity_books:
-            raise ValidationError(f"You can't assign book with 0 quantity. (books ids: {non_quantity_books}")
-
-        if kwargs['instance'].active_books.count() + len(kwargs['pk_set']) > 3:
-            raise ValidationError("You can't assign more than three books to reader")
-
-    if action == 'post_add':
-        books = [book for book in Book.objects.filter(pk__in=kwargs['pk_set']).all()]
-        for book in books:
-            book.quantity -= 1
-            book.save()
-
-m2m_changed.connect(reader_active_books_changed, sender=Reader.active_books.through)
